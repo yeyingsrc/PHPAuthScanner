@@ -1,9 +1,7 @@
 import os
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
-
 from PIL import ImageTk
-
 from scanner_core import PHPAuthScanner
 
 
@@ -19,22 +17,19 @@ class ScannerGUI:
         icon_path = os.path.join(os.path.dirname(__file__), "caigosec.ico")
         if os.path.exists(icon_path):
             try:
-                # 尝试使用Windows原生方法
                 self.root.iconbitmap(icon_path)
             except:
                 try:
-                    # 回退到Pillow方法
                     img = tk.Image.open(icon_path)
                     photo = ImageTk.PhotoImage(img)
                     self.root.iconphoto(False, photo)
-                    # 保持引用防止被垃圾回收
                     self.icon_image = photo
                 except Exception as e:
                     print(f"加载图标失败: {e}")
 
     def setup_ui(self):
         """初始化用户界面"""
-        self.root.title("菜狗安全PHP鉴权代码扫描器 v1.0")
+        self.root.title("菜狗安全PHP鉴权代码扫描器 v1.1")
         self.root.geometry("800x600")
 
         # 主框架
@@ -51,6 +46,9 @@ class ScannerGUI:
         btn_frame = ttk.Frame(dir_frame)
         btn_frame.pack(fill=tk.X, pady=5)
         ttk.Button(btn_frame, text="添加目录", command=self.add_directory).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="添加ThinkPHP项目", command=self.detect_thinkphp_project).pack(side=tk.LEFT, padx=5)
+        ttk.Button(btn_frame, text="自定义工作目录", command=self.extract_controller_dirs).pack(side=tk.LEFT,
+                                                                                                    padx=5)
         ttk.Button(btn_frame, text="移除目录", command=self.remove_directory).pack(side=tk.LEFT, padx=5)
         ttk.Button(btn_frame, text="清空目录", command=self.clear_directories).pack(side=tk.LEFT, padx=5)
 
@@ -82,9 +80,86 @@ class ScannerGUI:
         self.result_text.config(state=tk.DISABLED)
 
     def add_directory(self):
+        """添加普通目录"""
         directory = filedialog.askdirectory()
         if directory:
             self.dir_listbox.insert(tk.END, directory)
+
+    def detect_thinkphp_project(self):
+        """检测ThinkPHP项目并提取app/application中的controller目录"""
+        project_dir = filedialog.askdirectory(title="选择ThinkPHP项目根目录")
+        if not project_dir:
+            return
+
+        # 标准ThinkPHP目录结构
+        possible_dirs = [
+            os.path.join(project_dir, "app"),  # ThinkPHP 5.x/6.x
+            os.path.join(project_dir, "application")  # ThinkPHP 3.2
+        ]
+
+        # 查找存在的目录
+        found_dirs = [d for d in possible_dirs if os.path.exists(d)]
+
+        if not found_dirs:
+            messagebox.showwarning(
+                "未找到标准目录",
+                "未找到app或application目录，请使用'自定义工作目录'功能手动指定"
+            )
+            return
+
+        # 从找到的目录中提取controller目录
+        controller_dirs = []
+        for base_dir in found_dirs:
+            # 查找base_dir下的所有controller目录
+            for root, dirs, _ in os.walk(base_dir):
+                if os.path.basename(root).lower() == "controller":
+                    # 检查目录中是否有PHP文件
+                    if any(f.endswith('.php') for f in os.listdir(root)):
+                        controller_dirs.append(root)
+
+        if not controller_dirs:
+            messagebox.showwarning(
+                "未找到Controller目录",
+                f"在{project_dir}的app/application目录中未找到有效的Controller目录"
+            )
+            return
+
+        # 添加找到的Controller目录
+        added = 0
+        for dir_path in controller_dirs:
+            if dir_path not in self.dir_listbox.get(0, tk.END):
+                self.dir_listbox.insert(tk.END, dir_path)
+                added += 1
+
+        messagebox.showinfo("完成", f"已添加 {added} 个Controller目录")
+
+    def extract_controller_dirs(self, base_dir=None):
+        """从指定目录提取Controller目录"""
+        if base_dir is None:
+            base_dir = filedialog.askdirectory(title="选择包含Controller的目录")
+            if not base_dir:
+                return
+
+        # 查找所有controller目录（不区分大小写）
+        controller_dirs = []
+        for root, dirs, _ in os.walk(base_dir):
+            if os.path.basename(root).lower() == "controller":
+                # 检查目录中是否有PHP文件
+                if any(f.endswith('.php') for f in os.listdir(root)):
+                    controller_dirs.append(root)
+
+        if not controller_dirs:
+            messagebox.showwarning("警告", f"在 {base_dir} 中未找到有效的Controller目录")
+            return
+
+        # 添加找到的Controller目录
+        added = 0
+        for dir_path in controller_dirs:
+            if dir_path not in self.dir_listbox.get(0, tk.END):
+                self.dir_listbox.insert(tk.END, dir_path)
+                added += 1
+
+        messagebox.showinfo("完成", f"已添加 {added} 个Controller目录")
 
     def remove_directory(self):
         if selection := self.dir_listbox.curselection():
