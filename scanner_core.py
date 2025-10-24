@@ -12,15 +12,16 @@ class PHPAuthScanner:
         patterns = []
         for keyword in keywords:
             escaped_keyword = re.escape(keyword)
+            # 移除单词边界匹配符\b，使其能够匹配包含特殊字符的关键词
             patterns.extend([
-                rf'\b{escaped_keyword}\b',
+                escaped_keyword,  # 直接匹配关键词，适用于任何字符
                 rf'\${escaped_keyword}\[',
                 rf'{escaped_keyword}\(',
                 rf'require.*{escaped_keyword}\.php',
                 rf'extends\s+{escaped_keyword}',
                 rf'use\s+.*{escaped_keyword}',
-                rf'\${escaped_keyword}\b',
-                rf'\$_{escaped_keyword}\b',
+                rf'\${escaped_keyword}',
+                rf'\$_{escaped_keyword}',
                 rf'\${escaped_keyword}\s*[=!]=\s*[\'"]?\d[\'"]?'
             ])
         return re.compile('|'.join(patterns), re.IGNORECASE)
@@ -60,4 +61,4 @@ class PHPAuthScanner:
             else:
                 f.write(f"共发现 {len(results)} 个文件未检测到鉴权代码:\n\n")
                 for dir_path, file_path in results:
-                    f.write(f"[{dir_path}] {file_path}\n")
+                    f.write(f"{file_path}\n")
